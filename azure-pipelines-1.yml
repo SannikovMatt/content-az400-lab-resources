@@ -1,0 +1,58 @@
+trigger:
+- jenkins
+
+pool:
+  vmImage: 'windows-latest'
+
+jobs:
+- job: BuildAndDeploy
+  displayName: 'Build and Deploy Node.js App'
+
+  steps:
+  - task: NodeTool@0
+    inputs:
+      versionSpec: '14.x'
+    displayName: 'Install Node.js'
+
+  - script: |
+      npm install
+      npm run build
+    displayName: 'Build Node.js App'
+
+  - task: CopyFiles@2
+    inputs:
+      SourceFolder: '$(System.DefaultWorkingDirectory)'
+      Contents: '**/*.js'
+      TargetFolder: '$(Build.ArtifactStagingDirectory)'
+
+  - task: ArchiveFiles@2
+    inputs:
+      rootFolderOrFile: '$(Build.ArtifactStagingDirectory)'
+      includeRootFolder: false
+      archiveType: 'zip'
+      archiveFile: '$(Build.ArtifactStagingDirectory)/app.zip'
+      replaceExistingArchive: true
+
+  - task: PublishPipelineArtifact@1
+    inputs:
+      targetPath: '$(Build.ArtifactStagingDirectory)'
+      artifact: 'node-app'
+
+- job: DeployToAzureVM
+  displayName: 'Deploy to Azure VM'
+  dependsOn: BuildAndDeploy
+
+  steps:
+  - task: AzureFileCopy@4
+    inputs:
+      SourcePath: '$(System.DefaultWorkingDirectory)/node-app/app.zip'
+      azureSubscription: 'YourServiceConnection'  # Use the name of your Azure service connection
+      Destination: 'AzureVMs'
+      storage: 'YourStorageAccountName'  # Replace with your storage account name
+      ContainerName: 'YourContainerName'  # Replace with your container name
+      CommonVirtualPath: 'YourAzureVMPath'  # Replace with your Azure VM path
+
+  - script: |
+      # Add script to remotely deploy and unzip the package on the Azure VM
+      # For example, you might use Azure PowerShell or other remote execution methods
+    displayName: 'Deploy on Azure VM'
